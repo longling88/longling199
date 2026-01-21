@@ -143,7 +143,7 @@
         .swiper-slide img { width: 100%; height: 100%; object-fit: cover; }
         /* 线路入口 */
         .route-group { padding:30px 20px; }
-        .route-title { text-align:center; margin: 0 auto 20px; color: var(--text-accent); font-weight: bold; border: 1px solid var(--border-color); display: table; padding: 5px 20px; border-radius: 50px; font-size: 13px; }
+        .route-title { text-align:center; margin: 0 auto 20px; font-weight: bold; border: 1px solid var(--border-color); display: table; padding: 5px 20px; border-radius: 50px; font-size: 13px; }
        
         /* 更新线路卡片样式 */
         .route-card {
@@ -367,11 +367,11 @@
     let swiperInstance = null;
     let pingTests = []; // 存储PING测试的数组
     let currentBgUrl = ''; // 存储当前背景URL
-    
+   
     // 改进的视频播放管理函数
     function manageVideoPlayback(video) {
         if (!video) return;
-        
+       
         // 确保视频不会因为iOS Safari的优化而暂停
         video.play().catch(e => {
             console.log("Video autoplay failed, trying again:", e);
@@ -384,7 +384,7 @@
             document.addEventListener('touchstart', playOnInteraction);
             document.addEventListener('click', playOnInteraction);
         });
-        
+       
         // 监听暂停事件，自动恢复播放
         video.addEventListener('pause', function() {
             console.log("Video paused, resuming...");
@@ -392,20 +392,20 @@
                 this.play().catch(e => console.log("Resume failed:", e));
             }, 100);
         });
-        
+       
         // 监听播放结束，重新开始
         video.addEventListener('ended', function() {
             console.log("Video ended, restarting...");
             this.currentTime = 0;
             this.play().catch(e => console.log("Restart failed:", e));
         });
-        
+       
         // iOS Safari特殊处理
         if (navigator.userAgent.match(/(iPad|iPhone|iPod)/i)) {
             // 禁用内联播放控制
             video.setAttribute('playsinline', '');
             video.setAttribute('webkit-playsinline', '');
-            
+           
             // 防止页面滚动时视频暂停
             let isPlaying = false;
             video.addEventListener('playing', () => {
@@ -414,7 +414,7 @@
             video.addEventListener('pause', () => {
                 isPlaying = false;
             });
-            
+           
             // 在页面可见性变化时恢复播放
             document.addEventListener('visibilitychange', () => {
                 if (!document.hidden && video.paused) {
@@ -423,7 +423,48 @@
             });
         }
     }
-    
+   
+    // 设置背景函数 - 避免重复设置相同背景
+    function setBackground(bgUrl, isVideo) {
+        if (currentBgUrl === bgUrl) {
+            return false; // 背景没有变化
+        }
+       
+        currentBgUrl = bgUrl;
+        const box = document.getElementById('bg-box');
+       
+        // 清除现有背景
+        box.innerHTML = '';
+       
+        if (isVideo) {
+            // 创建视频元素
+            const video = document.createElement('video');
+            video.className = 'bg-media';
+            video.src = bgUrl;
+            video.autoplay = true;
+            video.muted = true;
+            video.loop = true;
+            video.playsInline = true;
+            video.setAttribute('playsinline', '');
+            video.setAttribute('webkit-playsinline', '');
+            video.preload = 'auto';
+           
+            // 添加视频元素
+            box.appendChild(video);
+           
+            // 管理视频播放
+            manageVideoPlayback(video);
+           
+            // 预加载视频
+            video.load();
+        } else {
+            // 图片背景
+            box.innerHTML = `<img class="bg-media" src="${bgUrl}">`;
+        }
+       
+        return true;
+    }
+   
     // 改进的PING测试函数 - 使用fetch HEAD请求测试连接时间
     async function testPing(url) {
         const startTime = Date.now();
@@ -561,47 +602,6 @@
         });
         pingTests = [];
     }
-    
-    // 设置背景函数 - 避免重复设置相同背景
-    function setBackground(bgUrl, isVideo) {
-        if (currentBgUrl === bgUrl) {
-            return false; // 背景没有变化
-        }
-        
-        currentBgUrl = bgUrl;
-        const box = document.getElementById('bg-box');
-        
-        // 清除现有背景
-        box.innerHTML = '';
-        
-        if (isVideo) {
-            // 创建视频元素
-            const video = document.createElement('video');
-            video.className = 'bg-media';
-            video.src = bgUrl;
-            video.autoplay = true;
-            video.muted = true;
-            video.loop = true;
-            video.playsInline = true;
-            video.setAttribute('playsinline', '');
-            video.setAttribute('webkit-playsinline', '');
-            video.preload = 'auto';
-            
-            // 添加视频元素
-            box.appendChild(video);
-            
-            // 管理视频播放
-            manageVideoPlayback(video);
-            
-            // 预加载视频
-            video.load();
-        } else {
-            // 图片背景
-            box.innerHTML = `<img class="bg-media" src="${bgUrl}">`;
-        }
-        
-        return true;
-    }
    
     async function init() {
         // 防止重复初始化
@@ -623,8 +623,14 @@
             // 背景渲染
             const bg = (window.innerWidth <= 768) ? (data.bg_mobile || data.bg_pc) : data.bg_pc;
             if(bg) {
-                const isVideo = bg.match(/\.(mp4|webm)$/i);
-                setBackground(bg, isVideo);
+                const box = document.getElementById('bg-box');
+                // 清除现有背景
+                box.innerHTML = '';
+                if(bg.match(/\.(mp4|webm)$/i)) {
+                    box.innerHTML = `<video class="bg-media" src="${bg}" autoplay muted loop playsinline preload="auto"></video>`;
+                } else {
+                    box.innerHTML = `<img class="bg-media" src="${bg}">`;
+                }
             }
             // 导航栏设置
             const navLogo = document.querySelector('.nav-logo');
@@ -729,7 +735,13 @@
                 });
             }
             // 线路渲染
-            document.getElementById('route-main-title').innerText = data.routeTitle || '线路入口';
+            const routeTitleEl = document.getElementById('route-main-title');
+            routeTitleEl.innerText = data.routeTitle || '线路入口';
+            routeTitleEl.style.fontSize = (data.route_title_size || 18) + 'px';
+            routeTitleEl.style.color = data.route_title_color || '#d4af37';
+            routeTitleEl.style.webkitTextStroke = `${data.route_title_stroke_width || 0}px ${data.route_title_stroke_color || '#000000'}`;
+            routeTitleEl.style.textStroke = `${data.route_title_stroke_width || 0}px ${data.route_title_stroke_color || '#000000'}`;
+            routeTitleEl.style.fontWeight = 'bold';
            
             // 清空线路列表
             const linksList = document.getElementById('links-list');
@@ -838,19 +850,28 @@
         clearTimeout(window.resizeTimer);
         window.resizeTimer = setTimeout(function() {
             // 重新获取背景
-            fetch('admin/config.json?t=' + Date.now())
-                .then(res => res.json())
-                .then(data => {
-                    const newBg = (window.innerWidth <= 768) ? (data.bg_mobile || data.bg_pc) : data.bg_pc;
-                    if (newBg) {
-                        const isVideo = newBg.match(/\.(mp4|webm)$/i);
-                        setBackground(newBg, isVideo);
-                    }
-                })
-                .catch(e => console.error("Resize background error:", e));
+            const bgBox = document.getElementById('bg-box');
+            if(bgBox.innerHTML) {
+                // 不重新初始化整个页面，只更新背景
+                fetch('admin/config.json?t=' + Date.now())
+                    .then(res => res.json())
+                    .then(data => {
+                        const newBg = (window.innerWidth <= 768) ? (data.bg_mobile || data.bg_pc) : data.bg_pc;
+                        const currentSrc = document.querySelector('.bg-media')?.src;  // 获取当前src
+                        if (newBg && newBg !== currentSrc) {  // 只在bg变化时更新
+                            bgBox.innerHTML = '';
+                            if(newBg.match(/\.(mp4|webm)$/i)) {
+                                bgBox.innerHTML = `<video class="bg-media" src="${newBg}" autoplay muted loop playsinline preload="auto"></video>`;
+                            } else {
+                                bgBox.innerHTML = `<img class="bg-media" src="${newBg}">`;
+                            }
+                        }
+                    })
+                    .catch(e => console.error("Resize background error:", e));
+            }
         }, 200);
     });
-    
+   
     // 防止iOS Safari页面滚动时暂停视频
     if (navigator.userAgent.match(/(iPad|iPhone|iPod)/i)) {
         // 监听滚动事件，确保视频继续播放
@@ -865,7 +886,7 @@
                 }
             }
         });
-        
+       
         // 页面可见性变化时恢复视频
         document.addEventListener('visibilitychange', function() {
             if (!document.hidden) {
